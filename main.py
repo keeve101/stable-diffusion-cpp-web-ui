@@ -3,11 +3,10 @@ from config import (
     SD_EXECUTABLE_FILE_PATH,
     MODELS_FOLDER_PATH,
     IMAGES_FOLDER_PATH,
-    TAESD_FILE_PATH,
 )
 from subprocess import Popen
-from PIL import Image
 
+import base64
 import datetime
 import asyncio
 import streamlit as st
@@ -16,6 +15,15 @@ st.set_page_config(layout="wide")
 
 IMAGES_FOLDER_PATH.mkdir(exist_ok=True)
 TASKS = ["txt2img", "img2img"]
+SAMPLING_METHODS = [
+    "euler",
+    "euler_a",
+    "dpm2",
+    "dpm++2s_a",
+    "dpm++2m",
+    "dpm++2mv2",
+    "lcm",
+]
 
 
 def run_stable_diffusion():
@@ -23,6 +31,17 @@ def run_stable_diffusion():
     Run the Stable Diffusion model with the specified prompt.
     """
     prompt = st.session_state["prompt"]
+    negative_prompt = st.session_state["negative_prompt"]
+    sampling_method = st.session_state["sampling_method"]
+    seed = st.session_state["seed"]
+    steps = st.session_state["steps"]
+    height = st.session_state["height"]
+    width = st.session_state["width"]
+    cfg_scale = st.session_state["cfg_scale"]
+    strength = st.session_state["strength"]
+    style_ratio = st.session_state["style_ratio"]
+    control_strength = st.session_state["control_strength"]
+    batch_count = st.session_state["batch_count"]
     model = st.session_state["model"]
     task = st.session_state["task"]
 
@@ -35,16 +54,19 @@ def run_stable_diffusion():
         "executable_file_path": SD_EXECUTABLE_FILE_PATH,
         "mode": task,
         "prompt": prompt,
+        "negative_prompt": negative_prompt,
         "output": output_file_path,
         "model": st.session_state["model_paths"].get(model),
-        "height": 512,
-        "width": 512,
-        "strength": 0.75,
-        "cfg_scale": 7.0,
-        "steps": 15,
-        "seed": 4141843455,
-        "batch_count": 1,
-        "sampling_method": "euler",
+        "height": height,
+        "width": width,
+        "cfg_scale": cfg_scale,
+        "strength": strength,
+        "style_ratio": style_ratio,
+        "control_strength": control_strength,
+        "steps": steps,
+        "seed": seed,
+        "batch_count": batch_count,
+        "sampling_method": sampling_method,
     }
 
     if task == "img2img":
@@ -92,6 +114,12 @@ def get_image_paths():
     options = [file for file in paths if file.suffix in [".png", ".jpg", ".jpeg"]]
     st.session_state["image_paths"] = {file.name: file.as_posix() for file in options}
 
+    if (
+        "image" in st.session_state
+        and st.session_state["image"] not in st.session_state["image_paths"]
+    ):
+        del st.session_state["image"]
+
 
 if "reload_image" in st.session_state:
     st.session_state["image"] = str(st.session_state["reload_image"])
@@ -106,37 +134,75 @@ with st.sidebar:
     st.selectbox("*Model Select*", st.session_state["model_paths"], key="model")
     st.selectbox("*Images*", st.session_state["image_paths"], key="image")
     st.selectbox("*Tasks*", TASKS, key="task")
+    st.button("Generate", on_click=run_stable_diffusion, use_container_width=True)
 
     if "process" in st.session_state:
-        st.button("Stop", on_click=stop_process)
+        st.button("Stop", on_click=stop_process, use_container_width=True)
 
-st.chat_input(
-    placeholder="Enter your prompt here...",
-    key="prompt",
-    on_submit=run_stable_diffusion,
-)
 
-image_display, logs = st.columns(2)
+image_display, parameters = st.columns(2)
 with image_display:
-    st.markdown(
-        """
-        ## Image Display
-        ---
-        """
-    )
     if st.session_state.get("image"):
         image_path = st.session_state["image_paths"].get(st.session_state["image"])
-        st.image(Image.open(image_path), output_format="PNG", width=512)
 
-with logs:
-    st.markdown("## Logs")
+        with open(image_path, "rb") as image_file:
+            image_bytes = base64.b64encode(image_file.read()).decode("utf-8")
+
+        img_html = f'<img src="data:image/{image_path};base64,{image_bytes}" width="512" height="512" />'
+
+        st.markdown(img_html, unsafe_allow_html=True)
+
+with parameters:
+    column1, column2 = st.columns(2)
+    with column1:
+        st.selectbox("*Sampling Method*", SAMPLING_METHODS, key="sampling_method")
+        st.number_input("*Seed*", key="seed", value=42)
+        st.number_input("*Height*", key="height", value=512, min_value=64)
+        st.number_input("*Width*", key="width", value=512, min_value=64)
+        st.number_input("*Batch Count*", key="batch_count", value=1)
+    with column2:
+        st.slider("*Steps*", key="steps", value=15, min_value=1)
+        st.slider(
+            "*CFG Scale*", key="cfg_scale", value=7.0, max_value=30.0, min_value=0.0
+        )
+        st.slider(
+            "*Strength*", key="strength", value=0.75, max_value=1.0, min_value=0.0
+        )
+        st.slider(
+            "*Style Ratio*",
+            key="style_ratio",
+            value=20.0,
+            max_value=100.0,
+            min_value=0.0,
+        )
+        st.slider(
+            "*Control Strength*",
+            key="control_strength",
+            value=0.9,
+            max_value=1.0,
+            min_value=0.0,
+        )
+
+st.text_area(
+    label="Prompt",
+    placeholder="Enter your prompt here...",
+    key="prompt",
+    label_visibility="hidden",
+)
+st.text_area(
+    label="Negative Prompt",
+    placeholder="Enter your negative prompt here...",
+    key="negative_prompt",
+    label_visibility="hidden",
+)
+
+with st.sidebar:
     with st.container(border=True):
+        st.markdown(
+            """
+            *Logs will be displayed here when the Stable Diffusion process is running.*
+            """
+        )
         if "process" in st.session_state:
             logs_container = st.empty()
             asyncio.run(get_process_output(st.session_state["process"], logs_container))
-        else:
-            st.markdown(
-                """
-                *Logs will be displayed here when the Stable Diffusion process is running.*
-                """
-            )
