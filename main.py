@@ -1,7 +1,12 @@
 from stable_diffusion_cpp import run_sd
+from pathlib import Path
 from config import (
     SD_EXECUTABLE_FILE_PATH,
-    MODELS_FOLDER_PATH,
+    CHECKPOINTS_FOLDER_PATH,
+    LORAS_FOLDER_PATH,
+    TAESD_FOLDER_PATH,
+    VAE_FOLDER_PATH,
+    UPSCALE_MODELS_FOLDER_PATH,
     IMAGES_FOLDER_PATH,
 )
 from subprocess import Popen
@@ -44,6 +49,14 @@ def run_stable_diffusion():
     batch_count = st.session_state["batch_count"]
     model = st.session_state["model"]
     task = st.session_state["task"]
+    lora = st.session_state[LORAS_FOLDER_PATH.name].get(st.session_state["lora_select"])
+    taesd = st.session_state[TAESD_FOLDER_PATH.name].get(
+        st.session_state["taesd_select"]
+    )
+    vae = st.session_state[VAE_FOLDER_PATH.name].get(st.session_state["vae_select"])
+    upscale_model = st.session_state[UPSCALE_MODELS_FOLDER_PATH.name].get(
+        st.session_state["upscale_model_select"]
+    )
 
     output_file_path = (
         IMAGES_FOLDER_PATH
@@ -56,7 +69,7 @@ def run_stable_diffusion():
         "prompt": prompt,
         "negative_prompt": negative_prompt,
         "output": output_file_path,
-        "model": st.session_state["model_paths"].get(model),
+        "model": st.session_state[CHECKPOINTS_FOLDER_PATH.name].get(model),
         "height": height,
         "width": width,
         "cfg_scale": cfg_scale,
@@ -73,6 +86,15 @@ def run_stable_diffusion():
         image = st.session_state["image"]
         image_path = st.session_state["image_paths"].get(image)
         kwargs["init_img"] = image_path
+    elif lora is not None:
+        kwargs["lora_model_dir"] = lora
+    elif taesd is not None:
+        kwargs["taesd"] = taesd
+    elif vae is not None:
+        kwargs["vae"] = vae
+    elif upscale_model is not None:
+        kwargs["upscale_model"] = upscale_model
+        kwargs["upscale_repeats"] = st.session_state.get("upscale_repeats")
 
     process = run_sd(**kwargs)
     st.session_state["process"] = process
@@ -103,10 +125,12 @@ def stop_process():
         del st.session_state["process"]
 
 
-def get_model_paths():
-    paths = MODELS_FOLDER_PATH.glob("**/*")
+def get_model_paths(folder_path: Path):
+    paths = folder_path.glob("**/*")
     options = [file for file in paths if file.is_file()]
-    st.session_state["model_paths"] = {file.name: file.as_posix() for file in options}
+    st.session_state[folder_path.name] = {
+        file.name: file.as_posix() for file in options
+    }
 
 
 def get_image_paths():
@@ -128,10 +152,39 @@ if "reload_image" in st.session_state:
 
 with st.sidebar:
     st.title("Stable Diffusion Models")
-    model_paths = get_model_paths()
-    image_paths = get_image_paths()
+    get_model_paths(CHECKPOINTS_FOLDER_PATH)
+    get_model_paths(LORAS_FOLDER_PATH)
+    get_model_paths(TAESD_FOLDER_PATH)
+    get_model_paths(VAE_FOLDER_PATH)
+    get_model_paths(UPSCALE_MODELS_FOLDER_PATH)
+    get_image_paths()
 
-    st.selectbox("*Model Select*", st.session_state["model_paths"], key="model")
+    st.selectbox(
+        "*Model Select*", st.session_state[CHECKPOINTS_FOLDER_PATH.name], key="model"
+    )
+    st.selectbox(
+        "*Loras*",
+        st.session_state[LORAS_FOLDER_PATH.name],
+        key="lora_select",
+        index=None,
+    )
+    st.selectbox(
+        "*TAESD*",
+        st.session_state[TAESD_FOLDER_PATH.name],
+        key="taesd_select",
+        index=None,
+    )
+    st.selectbox(
+        "*VAE*", st.session_state[VAE_FOLDER_PATH.name], key="vae_select", index=None
+    )
+    st.selectbox(
+        "*Upscale Model*",
+        st.session_state[UPSCALE_MODELS_FOLDER_PATH.name],
+        key="upscale_model_select",
+        index=None,
+    )
+    if st.session_state.get("upscale_model_select") is not None:
+        st.number_input("*Upscale Repeats*", key="upscale_repeats", value=1)
     st.selectbox("*Images*", st.session_state["image_paths"], key="image")
     st.selectbox("*Tasks*", TASKS, key="task")
     st.button("Generate", on_click=run_stable_diffusion, use_container_width=True)
