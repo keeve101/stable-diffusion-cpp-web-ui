@@ -45,7 +45,6 @@ def run_stable_diffusion():
     cfg_scale = st.session_state["cfg_scale"]
     strength = st.session_state["strength"]
     style_ratio = st.session_state["style_ratio"]
-    control_strength = st.session_state["control_strength"]
     batch_count = st.session_state["batch_count"]
     model = st.session_state["model"]
     task = st.session_state["task"]
@@ -75,7 +74,6 @@ def run_stable_diffusion():
         "cfg_scale": cfg_scale,
         "strength": strength,
         "style_ratio": style_ratio,
-        "control_strength": control_strength,
         "steps": steps,
         "seed": seed,
         "batch_count": batch_count,
@@ -86,13 +84,13 @@ def run_stable_diffusion():
         image = st.session_state["image"]
         image_path = st.session_state["image_paths"].get(image)
         kwargs["init_img"] = image_path
-    elif lora is not None:
+    if lora is not None:
         kwargs["lora_model_dir"] = lora
-    elif taesd is not None:
+    if taesd is not None:
         kwargs["taesd"] = taesd
     elif vae is not None:
         kwargs["vae"] = vae
-    elif upscale_model is not None:
+    if upscale_model is not None:
         kwargs["upscale_model"] = upscale_model
         kwargs["upscale_repeats"] = st.session_state.get("upscale_repeats")
 
@@ -214,26 +212,19 @@ with parameters:
         st.number_input("*Width*", key="width", value=512, min_value=64)
         st.number_input("*Batch Count*", key="batch_count", value=1)
     with column2:
-        st.slider("*Steps*", key="steps", value=15, min_value=1)
-        st.slider(
+        st.number_input("*Steps*", key="steps", value=15, min_value=1)
+        st.number_input(
             "*CFG Scale*", key="cfg_scale", value=7.0, max_value=30.0, min_value=0.0
         )
-        st.slider(
+        st.number_input(
             "*Strength*", key="strength", value=0.75, max_value=1.0, min_value=0.0
         )
-        st.slider(
+        st.number_input(
             "*Style Ratio*",
             key="style_ratio",
-            value=20.0,
-            max_value=100.0,
-            min_value=0.0,
-        )
-        st.slider(
-            "*Control Strength*",
-            key="control_strength",
-            value=0.9,
-            max_value=1.0,
-            min_value=0.0,
+            value=20,
+            max_value=100,
+            min_value=0,
         )
 
 st.text_area(
