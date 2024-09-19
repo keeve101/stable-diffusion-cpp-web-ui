@@ -80,6 +80,7 @@ def run_sd(
         cmd += ["-i", init_img]
     if control_image:
         cmd += ["--control-image", control_image]
+        cmd += ["--control-strength", str(control_strength)]
     cmd += ["-o", output]
     if prompt:
         cmd += ["-p", prompt]
@@ -87,8 +88,7 @@ def run_sd(
         cmd += ["-n", negative_prompt]
     cmd += ["--cfg-scale", str(cfg_scale)]
     cmd += ["--strength", str(strength)]
-    cmd += ["--style-ratio", str(style_ratio)]
-    cmd += ["--control-strength", str(control_strength)]
+    cmd += ["--style-ratio", f"{str(style_ratio)}%"]
     cmd += ["-H", str(height)]
     cmd += ["-W", str(width)]
     cmd += ["--sampling-method", sampling_method]
@@ -108,6 +108,8 @@ def run_sd(
         cmd += ["--color"]
     if verbose:
         cmd += ["--verbose"]
+
+    print(r" ".join([str(t) for t in cmd]))
 
     # Execute the command, return the process
     process = subprocess.Popen(
